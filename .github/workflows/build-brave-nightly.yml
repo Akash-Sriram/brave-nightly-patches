@@ -117,21 +117,25 @@ jobs:
           version=$TAG
           versionCode=$(date +%Y%m%d)
           author=Akash
-          description=All-in-One Magisk/KernelSU Module: Automatically installs & mounts patched Brave Nightly with Brave Origin unlocked.
+          description=All-in-One Magisk/KernelSU Module: Automatically mounts patched Brave Nightly with Brave Origin unlocked and cleans split conflicts.
           EOF
 
-          # 3. Create customize.sh (Auto-installs APK directly during flashing)
+          # 3. Create customize.sh (Installer setup)
           cat <<'EOF' > customize.sh
           ui_print "************************************************"
           ui_print "*   Brave Nightly Origin All-in-One Installer  *"
           ui_print "************************************************"
-          ui_print "- Installing / Updating Brave Nightly Monolithic..."
+          ui_print "- Configuring Brave Nightly Root Module..."
 
-          # Attempt package manager install directly during module flash
-          if pm install -r -d -g "$MODPATH/base.apk" >/dev/null 2>&1; then
-              ui_print "✔ App installed into system package registry successfully."
-          else
-              ui_print "! PM install returned non-zero, fallback to runtime boot mount."
+          PKG="com.brave.browser_nightly"
+          APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)
+
+          if [ -n "$APK_PATH" ]; then
+              APP_DIR=$(dirname "$APK_PATH")
+              if [ -f "$APP_DIR/split_chrome.apk" ]; then
+                  ui_print "- Cleaning conflicting Play Store split APKs..."
+                  rm -f "$APP_DIR"/split_* "$APP_DIR"/oat/*/split_* 2>/dev/null
+              fi
           fi
 
           ui_print "- Setting permissions..."
@@ -154,6 +158,9 @@ jobs:
           # Locate base.apk path dynamically
           APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)
           if [ -n "$APK_PATH" ] && [ -f "$MODDIR/base.apk" ]; then
+              APP_DIR=$(dirname "$APK_PATH")
+              # Remove any split apk conflicts from Play Store updates
+              rm -f "$APP_DIR"/split_* "$APP_DIR"/oat/*/split_* 2>/dev/null
               mount -o bind "$MODDIR/base.apk" "$APK_PATH"
               chcon u:object_r:apk_data_file:s0 "$APK_PATH"
           fi
