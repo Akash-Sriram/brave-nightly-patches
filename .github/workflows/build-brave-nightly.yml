@@ -1,0 +1,180 @@
+name: Build and Release Patched Brave Nightly
+
+on:
+  workflow_dispatch:
+    inputs:
+      brave_tag:
+        description: 'Brave Release Tag (leave empty for latest Nightly)'
+        required: false
+        default: ''
+  schedule:
+    - cron: '0 0 * * *'
+
+jobs:
+  build-and-patch:
+    name: Build, Patch & Package Root Module
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '21'
+
+      - name: Setup Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Fetch Brave Nightly Release Info
+        id: brave_info
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          CUSTOM_TAG: ${{ github.event.inputs.brave_tag }}
+        run: |
+          if [ -n "$CUSTOM_TAG" ]; then
+            TAG="$CUSTOM_TAG"
+          else
+            TAG=$(gh api repos/brave/brave-browser/releases --paginate --jq 'map(select(.prerelease == true and (.assets[].name | contains("BraveMonoarm64.apk")))) | .[0].tag_name')
+          fi
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Selected Brave Tag: $TAG"
+
+      - name: Download BraveMonoarm64.apk
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ steps.brave_info.outputs.tag }}
+        run: |
+          echo "Downloading BraveMonoarm64.apk for tag $TAG..."
+          gh release download "$TAG" --repo brave/brave-browser --pattern "BraveMonoarm64.apk" --output "BraveMonoarm64.apk"
+
+      - name: Download Morphe Desktop CLI
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download --repo MorpheApp/morphe-desktop --pattern "*all.jar" --output "morphe-desktop.jar"
+
+      - name: Build Patches (.mpp)
+        run: |
+          chmod +x ./gradlew
+          ./gradlew :patches:buildAndroid --no-daemon
+          MPP_FILE=$(ls patches/build/libs/patches-*.mpp | head -n 1)
+          cp "$MPP_FILE" patches.mpp
+
+      - name: Patch Brave Nightly APK
+        run: |
+          java -jar morphe-desktop.jar patch \
+            -p="patches.mpp" \
+            -e="Brave Origin" \
+            -f \
+            -o="BraveNightly-arm64-patched.apk" \
+            "BraveMonoarm64.apk"
+
+      - name: Package Magisk / KernelSU Root Module
+        env:
+          TAG: ${{ steps.brave_info.outputs.tag }}
+        run: |
+          mkdir -p magisk-module/META-INF/com/google/android
+          cd magisk-module
+
+          # 1. Copy patched base.apk
+          cp ../BraveNightly-arm64-patched.apk base.apk
+
+          # 2. Create module.prop
+          cat <<EOF > module.prop
+          id=brave-nightly-origin
+          name=Brave Nightly Origin (Root Mount)
+          version=$TAG
+          versionCode=$(date +%Y%m%d)
+          author=Morphe
+          description=Mounts patched Brave Nightly with Brave Origin unlocked over the stock monolithic install.
+          EOF
+
+          # 3. Create service.sh (Mounts APK at boot)
+          cat <<'EOF' > service.sh
+          #!/system/bin/sh
+          MODDIR=${0%/*}
+          PKG="com.brave.browser_nightly"
+
+          # Wait until boot completes and Package Manager is ready
+          while [ "$(getprop sys.boot_completed)" != "1" ]; do
+              sleep 1
+          done
+
+          # Locate base.apk path dynamically
+          APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)
+          if [ -n "$APK_PATH" ] && [ -f "$MODDIR/base.apk" ]; then
+              mount -o bind "$MODDIR/base.apk" "$APK_PATH"
+              chcon u:object_r:apk_data_file:s0 "$APK_PATH"
+          fi
+          EOF
+          chmod 755 service.sh
+
+          # 4. Create customize.sh (Installer verification)
+          cat <<'EOF' > customize.sh
+          ui_print "****************************************"
+          ui_print "*   Brave Nightly Origin Root Module   *"
+          ui_print "****************************************"
+
+          PKG="com.brave.browser_nightly"
+          if ! pm path $PKG >/dev/null 2>&1; then
+              ui_print "! WARNING: Brave Nightly is not installed."
+              ui_print "! Please install stock BraveMonoarm64.apk."
+          else
+              ui_print "- Brave Nightly detected."
+          fi
+          EOF
+
+          # 5. Create updater scripts for flashing
+          cat <<'EOF' > META-INF/com/google/android/updater-script
+          #MAGISK
+          EOF
+          cat <<'EOF' > META-INF/com/google/android/update-binary
+          #!/sbin/sh
+          #################
+          # Magisk Bootstrapper
+          #################
+          OUTFD=$2
+          ZIPFILE=$3
+          mount /data 2>/dev/null
+          exec $(magisk --path)/magiskboot --unpack-zip "$ZIPFILE" customize.sh "$OUTFD"
+          EOF
+
+          # 6. Create ZIP archive
+          zip -r9 ../BraveNightly-Root-Magisk-Module.zip ./*
+          cd ..
+
+      - name: Generate Checksums
+        run: |
+          sha256sum BraveNightly-arm64-patched.apk > BraveNightly-arm64-patched.apk.sha256
+          sha256sum BraveNightly-Root-Magisk-Module.zip > BraveNightly-Root-Magisk-Module.zip.sha256
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: "brave-nightly-${{ steps.brave_info.outputs.tag }}"
+          name: "Brave Nightly Patched (${{ steps.brave_info.outputs.tag }})"
+          body: |
+            ### 🚀 Releases for Brave Nightly ${{ steps.brave_info.outputs.tag }}
+            
+            #### 1. Non-Root Users
+            * **`BraveNightly-arm64-patched.apk`**: Install as a normal standalone APK.
+            
+            #### 2. Root Users (Magisk / KernelSU / APatch)
+            * **`BraveNightly-Root-Magisk-Module.zip`**: 
+              1. Install the official stock `BraveMonoarm64.apk` first on your phone.
+              2. Flash this ZIP module in Magisk / KernelSU / APatch.
+              3. Reboot your device.
+          draft: false
+          prerelease: false
+          files: |
+            BraveNightly-arm64-patched.apk
+            BraveNightly-arm64-patched.apk.sha256
+            BraveNightly-Root-Magisk-Module.zip
+            BraveNightly-Root-Magisk-Module.zip.sha256
