@@ -18,7 +18,7 @@ on:
 
 jobs:
   check-and-build:
-    name: Check, Build, Patch & Release
+    name: Build & Release Brave Nightly
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -28,13 +28,10 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Setup Java 21
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
           distribution: 'temurin'
           java-version: '21'
-
-      - name: Setup Android SDK
-        uses: android-actions/setup-android@v3
 
       - name: Fetch Latest Brave Nightly Tag
         id: brave_info
@@ -46,8 +43,8 @@ jobs:
           if [ -n "$CUSTOM_TAG" ]; then
             TAG="$CUSTOM_TAG"
           else
-            # Fetch the newest pre-release tag containing BraveMonoarm64.apk
-            TAG=$(gh api repos/brave/brave-browser/releases --paginate --jq 'map(select(.prerelease == true and (.assets[].name | contains("BraveMonoarm64.apk")))) | .[0].tag_name')
+            # Fetch the single newest release tag
+            TAG=$(gh api "repos/brave/brave-browser/releases" --jq ".[0].tag_name" | head -n 1 | tr -d '\r\n')
           fi
 
           RELEASE_TAG="brave-nightly-$TAG"
@@ -81,13 +78,16 @@ jobs:
         run: |
           gh release download --repo MorpheApp/morphe-desktop --pattern "*all.jar" --output "morphe-desktop.jar"
 
-      - name: Build Patches (.mpp)
+      - name: Prepare Patch Bundle
         if: steps.brave_info.outputs.should_build == 'true'
         run: |
-          chmod +x ./gradlew
-          ./gradlew :patches:buildAndroid --no-daemon
-          MPP_FILE=$(ls patches/build/libs/patches-*.mpp | head -n 1)
-          cp "$MPP_FILE" patches.mpp
+          if [ -f "patches/patches.mpp" ]; then
+            cp patches/patches.mpp patches.mpp
+          else
+            chmod +x ./gradlew
+            ./gradlew :patches:buildAndroid --no-daemon
+            cp patches/build/libs/patches-*.mpp patches.mpp
+          fi
 
       - name: Patch Brave Nightly APK
         if: steps.brave_info.outputs.should_build == 'true'
@@ -198,9 +198,8 @@ jobs:
             
             #### 1. Root Users (Magisk / KernelSU / APatch) — Recommended
             * **`BraveNightly-Root-Magisk-Module.zip`**: 
-              * **All-in-One**: Contains the full monolithic build.
-              * Flash directly in **Magisk / KernelSU / APatch Manager**.
-              * The installer automatically installs and bind-mounts the app with Brave's official signature.
+              * **All-in-One**: Flash directly in **Magisk / KernelSU / APatch Manager**.
+              * The installer automatically registers and bind-mounts the app with Brave's official signature.
             
             #### 2. Non-Root Users
             * **`BraveNightly-arm64-patched.apk`**: Sideload and install as a standalone APK.
