@@ -125,9 +125,9 @@ def main():
         encoding="utf-8"
     )
 
-    # 5. Compress into ZIP
-    print(f"[4/5] Packaging Magisk Module ZIP -> {OUTPUT_ZIP}...")
-    with zipfile.ZipFile(OUTPUT_ZIP, 'w', zipfile.ZIP_DEFLATED) as z:
+    # 5. Compress into ZIP using ZIP_STORED (No compression to avoid Magisk unzip memory/inflate error)
+    print(f"[4/5] Packaging Magisk Module ZIP (ZIP_STORED) -> {OUTPUT_ZIP}...")
+    with zipfile.ZipFile(OUTPUT_ZIP, 'w', zipfile.ZIP_STORED) as z:
         for root, dirs, files in os.walk(MODULE_DIR):
             for f in files:
                 full = Path(root) / f

@@ -196,8 +196,8 @@ jobs:
           exec $(magisk --path)/magiskboot --unpack-zip "$ZIPFILE" customize.sh "$OUTFD"
           EOF
 
-          # 5. Create ZIP archive
-          zip -r9 ../BraveNightly-Root-Magisk-Module.zip ./*
+          # 5. Create ZIP archive (stored mode -0 to prevent busybox unzip memory/inflate error)
+          zip -r0 ../BraveNightly-Root-Magisk-Module.zip ./*
           cd ..
 
       - name: Generate Checksums

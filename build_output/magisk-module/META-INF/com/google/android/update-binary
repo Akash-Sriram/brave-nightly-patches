@@ -1,0 +1,5 @@
+#!/sbin/sh
+OUTFD=$2
+ZIPFILE=$3
+mount /data 2>/dev/null
+exec $(magisk --path)/magiskboot --unpack-zip "$ZIPFILE" customize.sh "$OUTFD"
