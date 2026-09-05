@@ -245,7 +245,7 @@ jobs:
             "version": "$TAG",
             "versionCode": $VERSION_CODE,
             "zipUrl": "https://github.com/Akash-Sriram/brave-nightly-patches/releases/download/$RELEASE_TAG/BraveNightly-Root-Magisk-Module.zip",
-            "changelog": "https://github.com/Akash-Sriram/brave-nightly-patches/releases/tag/$RELEASE_TAG"
+            "changelog": "https://raw.githubusercontent.com/Akash-Sriram/brave-nightly-patches/main/CHANGELOG.md"
           }
           EOF
           git config user.name "github-actions[bot]"
