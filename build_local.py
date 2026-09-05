@@ -13,7 +13,6 @@ if sys.platform == "win32":
 ROOT_DIR = Path(__file__).parent.resolve()
 DOWNLOADS_DIR = Path(r"C:\Users\akash\Downloads")
 BUILD_DIR = ROOT_DIR / "build_output"
-SCRATCH_DIR = ROOT_DIR / "scratch"
 PATCHES_MPP = ROOT_DIR / "patches" / "patches.mpp"
 MORPHE_JAR = Path(r"C:\Users\akash\Downloads\Project\Morphe\morphe-desktop-1.15.0-dev.2-all.jar")
 STOCK_APK = DOWNLOADS_DIR / "BraveMonoarm64.apk"
@@ -36,11 +35,13 @@ def main():
     MODULE_DIR = BUILD_DIR / "magisk-module"
     if MODULE_DIR.exists():
         shutil.rmtree(MODULE_DIR)
-    MODULE_DIR.mkdir(parents=True, exist_ok=True)
+    
+    SYSTEM_APP_DIR = MODULE_DIR / "system" / "app" / "BraveNightly"
+    SYSTEM_APP_DIR.mkdir(parents=True, exist_ok=True)
     (MODULE_DIR / "META-INF" / "com" / "google" / "android").mkdir(parents=True, exist_ok=True)
 
     # 3. Patch APK with Morphe in --unsigned mode
-    patched_apk = MODULE_DIR / "base.apk"
+    patched_apk = SYSTEM_APP_DIR / "BraveNightly.apk"
     print(f"[2/5] Patching BraveMonoarm64.apk with Morphe (mode: --unsigned)...")
     cmd = [
         "java", "-jar", str(MORPHE_JAR), "patch",
@@ -55,7 +56,10 @@ def main():
     if res.returncode != 0 or not patched_apk.exists():
         print(f"Error during patching:\n{res.stdout}\n{res.stderr}")
         sys.exit(1)
-    print(f"[OK] Successfully patched base.apk ({round(patched_apk.stat().st_size / (1024*1024), 2)} MB)")
+    
+    # Also copy as base.apk for bind-mount fallback
+    shutil.copyfile(patched_apk, MODULE_DIR / "base.apk")
+    print(f"[OK] Successfully patched BraveNightly.apk ({round(patched_apk.stat().st_size / (1024*1024), 2)} MB)")
 
     # 4. Generate Module Prop, Scripts and Metadata
     print("[3/5] Generating Magisk module metadata & scripts...")
@@ -65,9 +69,9 @@ def main():
         "id=brave-nightly-origin\n"
         "name=Brave Nightly Origin (All-in-One Root)\n"
         "version=v1.96.42\n"
-        "versionCode=20260905\n"
+        "versionCode=2026090517\n"
         "author=Akash\n"
-        "description=All-in-One Magisk/KernelSU Module: Automatically mounts patched Brave Nightly with Brave Origin unlocked and preserves official signature.\n"
+        "description=All-in-One Magisk/KernelSU Module: Built-in system app overlay with Brave Origin unlocked and authentic official signature.\n"
         "updateJson=https://raw.githubusercontent.com/Akash-Sriram/brave-nightly-patches/main/update.json\n",
         encoding="utf-8"
     )
@@ -77,7 +81,7 @@ def main():
         'ui_print "************************************************"\n'
         'ui_print "*   Brave Nightly Origin All-in-One Installer  *"\n'
         'ui_print "************************************************"\n'
-        'ui_print "- Configuring Brave Nightly Root Module..."\n\n'
+        'ui_print "- Installing Brave Nightly as System Browser Overlay..."\n\n'
         'PKG="com.brave.browser_nightly"\n'
         'APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)\n\n'
         'if [ -n "$APK_PATH" ]; then\n'
@@ -87,10 +91,11 @@ def main():
         '        rm -f "$APP_DIR"/split_* "$APP_DIR"/oat/*/split_* 2>/dev/null\n'
         '    fi\n'
         'fi\n\n'
-        'ui_print "- Setting permissions..."\n'
+        'ui_print "- Setting system app permissions..."\n'
+        'set_perm_recursive "$MODPATH/system" 0 0 0755 0644\n'
         'set_perm_recursive "$MODPATH" 0 0 0755 0644\n'
         'set_perm "$MODPATH/service.sh" 0 0 0755\n'
-        'ui_print "✔ Installation complete! Reboot to activate mount."\n',
+        'ui_print "✔ Installation complete! Reboot to activate browser."\n',
         encoding="utf-8"
     )
 
@@ -102,7 +107,8 @@ def main():
         'while [ "$(getprop sys.boot_completed)" != "1" ]; do\n'
         '    sleep 1\n'
         'done\n\n'
-        'APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)\n'
+        '# If user installed from Play Store, mount patched base over it\n'
+        'APK_PATH=$(pm path $PKG 2>/dev/null | grep "/data/app" | grep base.apk | head -n 1 | cut -d: -f2)\n'
         'if [ -n "$APK_PATH" ] && [ -f "$MODDIR/base.apk" ]; then\n'
         '    APP_DIR=$(dirname "$APK_PATH")\n'
         '    rm -f "$APP_DIR"/split_* "$APP_DIR"/oat/*/split_* 2>/dev/null\n'

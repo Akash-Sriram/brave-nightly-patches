@@ -103,17 +103,19 @@ jobs:
             -o="BraveNightly-arm64-patched.apk" \
             "BraveMonoarm64.apk"
 
-      - name: Patch Brave Nightly (Root Unsigned APK for Magisk Mount)
+      - name: Patch Brave Nightly (Root Unsigned System App Overlay)
         if: steps.brave_info.outputs.should_build == 'true'
         run: |
+          mkdir -p magisk-module/system/app/BraveNightly
           mkdir -p magisk-module/META-INF/com/google/android
           java -jar morphe-desktop.jar patch \
             -p="patches.mpp" \
             -e="Brave Origin" \
             -f \
             --unsigned \
-            -o="magisk-module/base.apk" \
+            -o="magisk-module/system/app/BraveNightly/BraveNightly.apk" \
             "BraveMonoarm64.apk"
+          cp magisk-module/system/app/BraveNightly/BraveNightly.apk magisk-module/base.apk
 
       - name: Package Magisk / KernelSU Root Module
         if: steps.brave_info.outputs.should_build == 'true'
@@ -130,7 +132,7 @@ jobs:
           version=$TAG
           versionCode=$VERSION_CODE
           author=Akash
-          description=All-in-One Magisk/KernelSU Module: Automatically mounts patched Brave Nightly with Brave Origin unlocked and cleans split conflicts.
+          description=All-in-One Magisk/KernelSU Module: Built-in system app overlay with Brave Origin unlocked and authentic official signature.
           updateJson=https://raw.githubusercontent.com/Akash-Sriram/brave-nightly-patches/main/update.json
           EOF
 
@@ -139,7 +141,7 @@ jobs:
           ui_print "************************************************"
           ui_print "*   Brave Nightly Origin All-in-One Installer  *"
           ui_print "************************************************"
-          ui_print "- Configuring Brave Nightly Root Module..."
+          ui_print "- Installing Brave Nightly as System Browser Overlay..."
 
           PKG="com.brave.browser_nightly"
           APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)
@@ -152,10 +154,11 @@ jobs:
               fi
           fi
 
-          ui_print "- Setting permissions..."
+          ui_print "- Setting system app permissions..."
+          set_perm_recursive "$MODPATH/system" 0 0 0755 0644
           set_perm_recursive "$MODPATH" 0 0 0755 0644
           set_perm "$MODPATH/service.sh" 0 0 0755
-          ui_print "✔ Installation complete! Reboot to activate mount."
+          ui_print "✔ Installation complete! Reboot to activate browser."
           EOF
 
           # 3. Create service.sh (Persistent runtime mount on boot)
@@ -164,16 +167,14 @@ jobs:
           MODDIR=${0%/*}
           PKG="com.brave.browser_nightly"
 
-          # Wait until boot completes and Package Manager is ready
           while [ "$(getprop sys.boot_completed)" != "1" ]; do
               sleep 1
           done
 
-          # Locate base.apk path dynamically
-          APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)
+          # If user updated from Play Store, mount patched base over it
+          APK_PATH=$(pm path $PKG 2>/dev/null | grep "/data/app" | grep base.apk | head -n 1 | cut -d: -f2)
           if [ -n "$APK_PATH" ] && [ -f "$MODDIR/base.apk" ]; then
               APP_DIR=$(dirname "$APK_PATH")
-              # Remove any split apk conflicts from Play Store updates
               rm -f "$APP_DIR"/split_* "$APP_DIR"/oat/*/split_* 2>/dev/null
               mount -o bind "$MODDIR/base.apk" "$APK_PATH"
               chcon u:object_r:apk_data_file:s0 "$APK_PATH"

@@ -1,7 +1,7 @@
 id=brave-nightly-origin
 name=Brave Nightly Origin (All-in-One Root)
 version=v1.96.42
-versionCode=20260905
+versionCode=2026090517
 author=Akash
-description=All-in-One Magisk/KernelSU Module: Automatically mounts patched Brave Nightly with Brave Origin unlocked and preserves official signature.
+description=All-in-One Magisk/KernelSU Module: Built-in system app overlay with Brave Origin unlocked and authentic official signature.
 updateJson=https://raw.githubusercontent.com/Akash-Sriram/brave-nightly-patches/main/update.json

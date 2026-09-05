@@ -1,7 +1,7 @@
 ui_print "************************************************"
 ui_print "*   Brave Nightly Origin All-in-One Installer  *"
 ui_print "************************************************"
-ui_print "- Configuring Brave Nightly Root Module..."
+ui_print "- Installing Brave Nightly as System Browser Overlay..."
 
 PKG="com.brave.browser_nightly"
 APK_PATH=$(pm path $PKG 2>/dev/null | grep base.apk | head -n 1 | cut -d: -f2)
@@ -14,7 +14,8 @@ if [ -n "$APK_PATH" ]; then
     fi
 fi
 
-ui_print "- Setting permissions..."
+ui_print "- Setting system app permissions..."
+set_perm_recursive "$MODPATH/system" 0 0 0755 0644
 set_perm_recursive "$MODPATH" 0 0 0755 0644
 set_perm "$MODPATH/service.sh" 0 0 0755
-ui_print "✔ Installation complete! Reboot to activate mount."
+ui_print "✔ Installation complete! Reboot to activate browser."
