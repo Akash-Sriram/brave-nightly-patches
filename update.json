@@ -1,6 +1,6 @@
 {
-  "version": "v1.96.42",
-  "versionCode": 20260905,
-  "zipUrl": "https://github.com/Akash-Sriram/brave-nightly-patches/releases/latest/download/BraveNightly-Root-Magisk-Module.zip",
-  "changelog": "https://github.com/Akash-Sriram/brave-nightly-patches/releases/latest"
+  "version": "v1.97.8",
+  "versionCode": 2026090509,
+  "zipUrl": "https://github.com/Akash-Sriram/brave-nightly-patches/releases/download/brave-nightly-v1.97.8/BraveNightly-Root-Magisk-Module.zip",
+  "changelog": "https://github.com/Akash-Sriram/brave-nightly-patches/releases/tag/brave-nightly-v1.97.8"
 }
