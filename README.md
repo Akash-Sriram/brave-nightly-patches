@@ -1,61 +1,68 @@
 # Brave Nightly Origin Patches
 
-Automated build and patch pipeline for **Brave Nightly Android (`arm64-v8a`)** using Morphe patcher.
-
-## Features
-* **Brave Origin Unlocked**: Enables Origin preference switches, subscription active state, and origin preferences in Brave Nightly.
-* **Dual Release Architecture**:
-  * **Non-Root**: Standalone signed APK (`BraveNightly-arm64-patched.apk`).
-  * **Root**: Flashable Magisk / KernelSU / APatch Module ZIP (`BraveNightly-Root-Magisk-Module.zip`).
+Automated build, patch, and release pipeline for **Brave Nightly Android (`arm64-v8a`)** powered by Morphe bytecode patching.
 
 ---
 
-## Installation Guide
+## 🚀 Features
 
-### Option 1: Root Users (Magisk / KernelSU / APatch) - Recommended
-Retains Brave's official signature, automatic updates compatibility, and seamless sync.
-
-1. Download and install the official stock **`BraveMonoarm64.apk`** from [Brave Browser Releases](https://github.com/brave/brave-browser/releases).
-2. Download **`BraveNightly-Root-Magisk-Module.zip`** from the [Releases](https://github.com/) section of this repository.
-3. Open **Magisk / KernelSU / APatch Manager** $\rightarrow$ **Modules** $\rightarrow$ **Install from storage**.
-4. Select `BraveNightly-Root-Magisk-Module.zip` and flash it.
-5. Reboot your device.
+* **Brave Origin Unlocked**: Full access to Origin flags, subscription toggles, and premium origin preference switches.
+* **Dual Release Distribution**:
+  * **Root Users (Magisk / KernelSU / APatch)**: Built-in system app overlay with authentic official release signatures (Passkeys, WebAuthn & Autofill fully functional).
+  * **Non-Root Users**: Standalone signed APK (`BraveNightly-arm64-patched.apk`).
+* **In-App Magisk Updates**: Module includes `updateJson` to notify and update directly inside Magisk / KernelSU / MMRL.
+* **Automated CI/CD**: Checks for new official Brave Nightly releases every 6 hours and automatically publishes updated releases.
 
 ---
 
-### Option 2: Non-Root Users
-1. Download **`BraveNightly-arm64-patched.apk`** from the [Releases](https://github.com/) section.
+## 📥 Downloads & Installation
+
+### 1. Root Users (Magisk / KernelSU / APatch) — Recommended
+
+> **No stock APK required beforehand.** The module includes a complete system app overlay (`system/app/BraveNightly/BraveNightly.apk`) that Android registers as a built-in system browser on boot.
+
+1. Download **[`BraveNightly-Root-Magisk-Module.zip`](https://github.com/Akash-Sriram/brave-nightly-patches/releases/latest/download/BraveNightly-Root-Magisk-Module.zip)** from the [Latest Release](https://github.com/Akash-Sriram/brave-nightly-patches/releases/latest).
+2. Open **Magisk / KernelSU / APatch Manager** $\rightarrow$ **Modules** $\rightarrow$ **Install from storage**.
+3. Select `BraveNightly-Root-Magisk-Module.zip` and flash it.
+4. **Reboot** your device.
+
+#### 💡 Future Updates for Root Users:
+* When a new update is released, simply open **Magisk Manager** $\rightarrow$ **Modules** $\rightarrow$ tap **Update** $\rightarrow$ **Reboot**.
+
+---
+
+### 2. Non-Root Users (Standalone APK)
+
+1. Download **[`BraveNightly-arm64-patched.apk`](https://github.com/Akash-Sriram/brave-nightly-patches/releases/latest/download/BraveNightly-arm64-patched.apk)**.
 2. Sideload and install the APK directly on your device.
 
 ---
 
-## Automated CI/CD Workflow
-The repository includes a GitHub Actions workflow (`.github/workflows/build-brave-nightly.yml`) that:
-* Polls and fetches the latest Brave Nightly release from `brave/brave-browser`.
-* Downloads `BraveMonoarm64.apk`.
-* Compiles the patch bytecode bundle.
-* Automatically generates and attaches both the Non-Root APK and the Root Magisk Module ZIP to GitHub Releases.
+## 🛠️ Local Building
+
+An all-in-one local build script is provided to patch and package the module locally on your PC:
+
+### Quick Local Build:
+```powershell
+python build_local.py
+```
+
+`build_local.py` automatically:
+1. Downloads the official `BraveMonoarm64.apk` from Brave's releases.
+2. Applies the Brave Origin patch with Morphe in `--unsigned` mode.
+3. Packages the uncompressed (`STORED`) Magisk module ZIP.
+4. Automatically transfers the ZIP to `/sdcard/Download/` if your Android device is connected via ADB.
 
 ---
 
-## Local Development & Building
+## 🔄 Automated CI/CD Workflow
 
-### Prerequisites
-* Java 21+
-* Android SDK (`build-tools`, `platforms;android-34`)
-* Morphe CLI (`morphe-desktop`)
+The GitHub Actions workflow ([`.github/workflows/build-brave-nightly.yml`](.github/workflows/build-brave-nightly.yml)) runs on a 6-hour cron schedule:
+1. Detects new release tags on `brave/brave-browser`.
+2. Compiles patches and builds both Root & Non-Root artifacts.
+3. Automatically updates `update.json` and publishes a new GitHub Release with SHA-256 checksums.
 
-### Build Patches
-```bash
-./gradlew :patches:buildAndroid
-```
+---
 
-### Apply Patch Manually
-```bash
-java -jar morphe-desktop.jar patch \
-  -p="patches/build/libs/patches-*.mpp" \
-  -e="Brave Origin" \
-  -f \
-  -o="BraveNightly-patched.apk" \
-  "BraveMonoarm64.apk"
-```
+## 📜 License
+GPL-3.0 License.
